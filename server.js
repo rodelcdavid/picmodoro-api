@@ -13,7 +13,6 @@ const pool = new Pool({
   host: "localhost",
   port: "5432",
   password: "admin",
-  //   connectionString: "https://localhost:5432",
   database: "picmodoro",
 });
 // const { Pool, Client } = pkg;
@@ -30,24 +29,6 @@ const pool = new Pool({
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cors());
-// const database = {
-//   users: [
-//     {
-//       id: "1",
-//       name: "Rodel",
-//       email: "rodelcdavid@gmail.com",
-//       password: "1234",
-//       entries: 0,
-//     },
-//     {
-//       id: "2",
-//       name: "abc",
-//       email: "abc@gmail.com",
-//       password: "1234",
-//       entries: 0,
-//     },
-//   ],
-// };
 
 app.get("/", (req, res) => {
   res.json("Phewww, that was a good nap. Server is now awake!");
@@ -55,24 +36,28 @@ app.get("/", (req, res) => {
 
 app.get("/goals", async (req, res) => {
   try {
-    const goalList = await pool.query("SELECT * FROM goals");
-    setTimeout(() => {
-      //TODO: testing having delay, remove this on production
-      res.json(goalList.rows);
-    }, 1000);
+    const goalList = await pool.query(
+      "SELECT * FROM goals ORDER BY date_created DESC"
+    );
+    // setTimeout(() => {
+    //   //TODO: testing having delay, remove this on production
+    //   res.json(goalList.rows);
+    // }, 1000);
+    res.json(goalList.rows);
   } catch (error) {
     console.log(error);
   }
 });
 
 app.post("/goals", async (req, res) => {
+  //!Change preset min to 25
   try {
     const { id, goalName, goalImage } = req.body;
     const newGoal = await pool.query(
-      `INSERT INTO goals VALUES (1, $1, $2, $3, '[{"clickable": false, "reveal": false}]', 25, false, false, current_timestamp, null) RETURNING *;`,
+      `INSERT INTO goals VALUES (1, $1, $2, $3, '[{"clickable": false, "reveal": false}]', 1, false, false, current_timestamp, null) RETURNING *;`,
       [id, goalName, goalImage]
     );
-    console.log("newGoal", newGoal.rows[0]);
+    // console.log("newGoal", newGoal.rows[0]);
     res.json(newGoal.rows[0]);
   } catch (error) {
     console.log(error);
@@ -86,101 +71,52 @@ app.delete("/goals", async (req, res) => {
       "DELETE FROM goals WHERE id = $1 RETURNING *",
       [id]
     );
-    console.log(goalToDelete.rows);
+    // console.log(goalToDelete.rows);
+    // setTimeout(() => {
+    //   // TODO: remove setTimeout
+    //   res.json(goalToDelete.rows[0]);
+    // }, 1000);
     res.json(goalToDelete.rows[0]);
   } catch (error) {
     console.log(error);
   }
 });
 
-// // app.post("/profile", (req, res) => {
-// //   console.log(req.body);
-// //   res.send(req.body);
-// // });
+app.patch("/goals", async (req, res) => {
+  const { id, is_random, preset_min, blockers } = req.body.currentGoal;
+  console.log("PATCH", req.body.currentGoal);
+  try {
+    const goalToUpdate = await pool.query(
+      "UPDATE goals SET is_random = $1, preset_min = $2, blockers = $3 WHERE id = $4 RETURNING *",
+      [is_random, preset_min, JSON.stringify(blockers), id]
+    );
+    console.log(goalToUpdate.rows);
+    // setTimeout(() => {
+    //   // TODO: remove setTimeout
+    //   res.json(goalToDelete.rows[0]);
+    // }, 1000);
+    res.json(goalToUpdate.rows[0]);
+  } catch (error) {
+    console.log(error);
+  }
+});
 
-// app.post("/signin", async (req, res) => {
-//   // try {
-//   //   const { email, password } = req.body;
+app.get("/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const currentGoal = await pool.query("SELECT * FROM goals WHERE id = $1", [
+      id,
+    ]);
 
-//   //   const foundUser = await pool.query(
-//   //     "SELECT * FROM users WHERE email = $1 AND password = ",
-//   //     [name, email, new Date()]
-//   //   );
-//   // } catch (error) {}
+    setTimeout(() => {
+      res.json(currentGoal.rows[0]);
+    }, 500);
 
-//   let found = false;
-//   database.users.map((user) => {
-//     if (user.email === email && user.password === password) {
-//       res.json(user);
-//       found = true;
-//     }
-//   });
-//   if (!found) {
-//     res.status(400).json("error logging in");
-//   }
-// });
-
-// app.post("/register", async (req, res) => {
-//   try {
-//     const { name, email } = req.body;
-//     const newUser = await pool.query(
-//       "INSERT INTO users (name, email, joined) VALUES($1, $2, $3) RETURNING *",
-//       [name, email, new Date()]
-//     );
-//     //create new entry in the login table, use transactions
-//     //is a login table necessary?
-//     res.json(newUser.rows[0]);
-//   } catch (error) {
-//     console.log(error);
-//   }
-// });
-
-// app.put("/detect", async (req, res) => {
-//   try {
-//     const { id } = req.body;
-//     let { entries } = req.body;
-//     // const prevEntry = await pool.query(
-//     //   "SELECT entries FROM users WHERE id = $1",
-//     //   [id]
-//     // );
-
-//     // const plusEntry = Number(prevEntry.rows[0].entries) + 1;
-//     // console.log(Number(prevEntry.rows[0].entries) + 1);
-//     // console.log(Number(entries) + 1);
-//     const newEntry = await pool.query(
-//       "UPDATE users SET entries = $1 WHERE id = $2 RETURNING *",
-//       [Number(entries) + 1, id]
-//     );
-
-//     // console.log(prevEntry.rows[0]);
-//     res.json(newEntry.rows[0].entries);
-//   } catch (error) {
-//     console.log(error);
-//   }
-//   // let found = false;
-//   // database.users.map((user) => {
-//   //   if (user.id === req.body.id) {
-//   //     found = true;
-//   //     user.entries++;
-//   //     res.json(user.entries);
-//   //   }
-//   // });
-//   // if (!found) {
-//   //   res.status(400).json("not found");
-//   // }
-// });
-
-// app.get("/profile/:id", (req, res) => {
-//   const { id } = req.params;
-
-//   database.users.forEach((user) => {
-//     if (user.id === Number(id)) {
-//       return res.json(user);
-//     } else {
-//       return res.status(404).json("no such user");
-//     }
-//   });
-// });
+    // res.json(currentGoal.rows[0]);
+  } catch (error) {
+    console.log(error);
+  }
+});
 
 const PORT = process.env.PORT;
 
