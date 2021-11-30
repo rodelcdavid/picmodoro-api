@@ -2,13 +2,15 @@ CREATE TABLE users(
     id SERIAL PRIMARY KEY,
     name VARCHAR(100),
     email VARCHAR(320) UNIQUE NOT NULL,
+    password VARCHAR(100) NOT NULL,
     joined TIMESTAMP NOT NULL
 );
 
 CREATE TABLE login(
     id SERIAL PRIMARY KEY,
+    email VARCHAR(320) UNIQUE NOT NULL,
     password VARCHAR(100) NOT NULL,
-    email TEXT UNIQUE NOT NULL
+ 
 );
 
 CREATE TABLE goals(
