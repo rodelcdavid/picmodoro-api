@@ -3,7 +3,8 @@
 // import pkg from "pg";
 require("dotenv").config();
 const express = require("express");
-var cors = require("cors");
+const cors = require("cors");
+const bcrypt = require("bcrypt");
 
 const { Pool } = require("pg");
 const app = express();
@@ -49,10 +50,12 @@ app.post("/register", async (req, res) => {
       throw "Email already exists";
     }
 
+    //hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
     //add to user table
     const newUser = await pool.query(
       `INSERT INTO users VALUES (DEFAULT, $1, $2, $3, current_timestamp) RETURNING *;`,
-      [name, email, password]
+      [name, email, hashedPassword]
     );
 
     const newLogin = await pool.query(
@@ -73,19 +76,35 @@ app.post("/signin", async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    //find email in database
     const userExists = await pool.query(
-      `SELECT * FROM login WHERE email = $1 AND password = $2;`,
-      [email, password]
+      `SELECT * FROM login WHERE email = $1;`,
+      [email]
     );
     console.log(userExists.rows);
     if (userExists.rows.length) {
-      const userDetails = await pool.query(
-        `SELECT * FROM login JOIN users ON login.email = users.email AND login.email = $1;`,
-        [email]
-      );
-      res.status(200).json(userDetails.rows[0]);
+      //Get hash password
+      const hashedPassword = userExists.rows[0].password;
+
+      //compare password
+      if (await bcrypt.compare(password, hashedPassword)) {
+        const userDetails = await pool.query(
+          `SELECT * FROM login JOIN users ON login.email = users.email AND login.email = $1;`,
+          [email]
+        );
+        res.status(200).json(userDetails.rows[0]);
+      } else {
+        res
+          .status(400)
+          .json(
+            "Email and password combination is incorrect. Please try again."
+          ); //Shouldn't give clue, change this later
+      }
     } else {
-      res.status(400).json("Error signing in");
+      //user doesn't exist
+      res
+        .status(400)
+        .json("Email and password combination is incorrect. Please try again.");
     }
   } catch (e) {
     res.status(400).json(e);
@@ -120,7 +139,7 @@ app.post("/goals", async (req, res) => {
       `INSERT INTO goals VALUES ($1, $2, $3, $4, '[{"clickable": false, "reveal": false}]', 1, false, false, current_timestamp, null) RETURNING *;`,
       [ownerId, id, goalName, goalImage]
     );
-    // console.log("newGoal", newGoal.rows[0]);
+
     res.json(newGoal.rows[0]);
   } catch (error) {
     console.log(error);
@@ -151,7 +170,7 @@ app.patch("/goals", async (req, res) => {
       "UPDATE goals SET is_random = $1, preset_min = $2, blockers = $3 WHERE id = $4 RETURNING *",
       [is_random, preset_min, JSON.stringify(blockers), id]
     );
-    console.log(goalToUpdate.rows);
+
     // setTimeout(() => {
     //   // TODO: remove setTimeout
     //   res.json(goalToDelete.rows[0]);
