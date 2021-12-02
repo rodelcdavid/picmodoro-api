@@ -33,6 +33,26 @@ app.get("/", (req, res) => {
   res.json("Phewww, that was a good nap. Server is now awake!");
 });
 
+//Check email
+app.get("/check/:email", async (req, res) => {
+  const { email } = req.params;
+  // console.log(id);
+  try {
+    const emailExists = await pool.query(
+      `SELECT * FROM login WHERE email = $1;`,
+      [email]
+    );
+
+    if (emailExists.rows.length) {
+      res.status(400).json("Email already exists");
+    } else {
+      res.status(200).json("Email available");
+    }
+  } catch (error) {
+    console.log(error);
+  }
+});
+
 //Register
 app.post("/register", async (req, res) => {
   const { name, email, password } = req.body;
@@ -41,14 +61,14 @@ app.post("/register", async (req, res) => {
     await client.query("BEGIN");
 
     //Check if email exists
-    const emailExists = await pool.query(
-      `SELECT * FROM login WHERE email = $1;`,
-      [email]
-    );
+    // const emailExists = await pool.query(
+    //   `SELECT * FROM login WHERE email = $1;`,
+    //   [email]
+    // );
 
-    if (emailExists.rows.length) {
-      throw "Email already exists";
-    }
+    // if (emailExists.rows.length) {
+    //   throw "Email already exists";
+    // }
 
     //hash password
     const hashedPassword = await bcrypt.hash(password, 10);
