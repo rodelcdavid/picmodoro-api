@@ -114,17 +114,11 @@ app.post("/signin", async (req, res) => {
         );
         res.status(200).json(userDetails.rows[0]);
       } else {
-        res
-          .status(400)
-          .json(
-            "Email and password combination is incorrect. Please try again."
-          ); //Shouldn't give clue, change this later
+        res.status(400).json("Wrong credentials.");
       }
     } else {
       //user doesn't exist
-      res
-        .status(400)
-        .json("Email and password combination is incorrect. Please try again.");
+      res.status(400).json("Wrong credentials.");
     }
   } catch (e) {
     res.status(400).json(e);
