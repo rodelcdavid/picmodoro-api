@@ -5,6 +5,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 const { Pool } = require("pg");
 const app = express();
@@ -28,6 +29,85 @@ const pool = new Pool({
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cors());
+
+//Authentication
+
+//generate accessToken
+const generateAccessToken = (user) => {
+  return jwt.sign({ id: user.id }, "mySecretKey", { expiresIn: "10s" });
+};
+
+//generate refreshToken
+const generateRefreshToken = (user) => {
+  return jwt.sign({ id: user.id }, "myRefreshSecretKey");
+};
+
+//generate tokens in register and login
+
+//verify
+const verify = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    console.log(authHeader);
+    const token = authHeader.split(" ")[1];
+    // console.log("tokenhere", token);
+    jwt.verify(token, "mySecretKey", (err, user) => {
+      if (err) {
+        console.log("token invalid");
+
+        return res.status(401).json("Token is not valid!");
+      }
+      console.log("token valid");
+      req.user = user;
+      next();
+    });
+  } else {
+    res.status().json("You are not authenticated!");
+  }
+};
+//refresh
+
+let refreshTokensArray = [];
+app.post("/refresh", (req, res) => {
+  const refreshToken = req.body.token;
+  console.log("REFRESH", refreshToken);
+  if (!refreshToken) {
+    return res.status(401).json("You are not authenticated!");
+  }
+  if (!refreshTokensArray.includes(refreshToken)) {
+    return res.status(403).json("Token is not valid!");
+  }
+
+  jwt.verify(refreshToken, "myRefreshSecretKey", (err, user) => {
+    if (err) {
+      console.log(err);
+    }
+
+    refreshTokensArray = refreshTokensArray.filter(
+      (token) => token !== refreshToken
+    );
+
+    const newAccessToken = generateAccessToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+
+    refreshTokensArray.push(newRefreshToken);
+
+    res
+      .status(200)
+      .json({ accessToken: newAccessToken, refreshToken: newRefreshToken });
+  });
+});
+
+//logout
+app.post("/logout", (req, res) => {
+  const refreshToken = req.body.token;
+  console.log("before logout", refreshTokensArray);
+  refreshTokensArray = refreshTokensArray.filter(
+    (token) => token !== refreshToken
+  );
+  console.log("after logout", refreshTokensArray);
+  res.status(200).json("You logged out");
+});
 
 app.get("/", (req, res) => {
   res.json("Phewww, that was a good nap. Server is now awake!");
@@ -82,7 +162,14 @@ app.post("/register", async (req, res) => {
       `INSERT INTO login VALUES (DEFAULT, $1, $2) RETURNING *;`,
       [newUser.rows[0].email, newUser.rows[0].password]
     );
-    res.status(200).json(newUser.rows[0]);
+
+    const accessToken = generateAccessToken(newUser.rows[0]);
+    const refreshToken = generateRefreshToken(newUser.rows[0]);
+
+    refreshTokensArray.push(refreshToken);
+
+    //add tokens to response
+    res.status(200).json({ user: newUser.rows[0], accessToken, refreshToken });
   } catch (e) {
     await client.query("ROLLBACK");
     res.status(400).json(e);
@@ -101,18 +188,27 @@ app.post("/signin", async (req, res) => {
       `SELECT * FROM login WHERE email = $1;`,
       [email]
     );
-    console.log(userExists.rows);
+
     if (userExists.rows.length) {
       //Get hash password
       const hashedPassword = userExists.rows[0].password;
 
       //compare password
+      //then add tokens here
       if (await bcrypt.compare(password, hashedPassword)) {
         const userDetails = await pool.query(
           `SELECT * FROM login JOIN users ON login.email = users.email AND login.email = $1;`,
           [email]
         );
-        res.status(200).json(userDetails.rows[0]);
+
+        const accessToken = generateAccessToken(userDetails.rows[0]);
+        const refreshToken = generateRefreshToken(userDetails.rows[0]);
+
+        refreshTokensArray.push(refreshToken);
+
+        res
+          .status(200)
+          .json({ user: userDetails.rows[0], accessToken, refreshToken });
       } else {
         res.status(400).json("Wrong credentials.");
       }
@@ -126,21 +222,28 @@ app.post("/signin", async (req, res) => {
 });
 
 //Get all goals of user
-app.get("/user/:id", async (req, res) => {
+app.get("/user/:id", verify, async (req, res) => {
   const { id } = req.params;
+  // console.log(id);
+  console.log("whats here", req.user.id);
   console.log(id);
+  //if ownerid from param = id from verified token, get all goals of ownerid
   try {
-    const goalList = await pool.query(
-      "SELECT * FROM goals WHERE owner_id = $1 ORDER BY date_created DESC",
-      [id]
-    );
-    // setTimeout(() => {
-    //   //TODO: testing having delay, remove this on production
-    //   res.json(goalList.rows);
-    // }, 1000);
-    res.json(goalList.rows);
-  } catch (error) {
-    console.log(error);
+    if (req.user.id === Number(id)) {
+      const goalList = await pool.query(
+        "SELECT * FROM goals WHERE owner_id = $1 ORDER BY date_created DESC",
+        [id]
+      );
+      // setTimeout(() => {
+      //   //TODO: testing having delay, remove this on production
+      //   res.json(goalList.rows);
+      // }, 1000);
+      res.status(200).json(goalList.rows);
+    } else {
+      res.status(401).json("Invalid user");
+    }
+  } catch (err) {
+    console.log(err);
   }
 });
 
@@ -149,6 +252,9 @@ app.post("/goals", async (req, res) => {
   //!Change preset min to 25
   try {
     const { ownerId, id, goalName, goalImage } = req.body;
+
+    //if ownerid from param = id from verified token, add new goal
+
     const newGoal = await pool.query(
       `INSERT INTO goals VALUES ($1, $2, $3, $4, '[{"clickable": false, "reveal": false}]', 1, false, false, current_timestamp, null) RETURNING *;`,
       [ownerId, id, goalName, goalImage]
@@ -161,9 +267,13 @@ app.post("/goals", async (req, res) => {
 });
 
 //Delete Goal
+
 app.delete("/goals", async (req, res) => {
   const { id } = req.body;
+
   try {
+    //if ownerid from param = id from verified token, add new goal with id from body
+
     const goalToDelete = await pool.query(
       "DELETE FROM goals WHERE id = $1 RETURNING *",
       [id]
@@ -180,6 +290,8 @@ app.patch("/goals", async (req, res) => {
   const { id, is_random, preset_min, blockers } = req.body.currentGoal;
   console.log("PATCH", req.body.currentGoal);
   try {
+    //if ownerid from param = id from verified token, update goal with id from body
+
     const goalToUpdate = await pool.query(
       "UPDATE goals SET is_random = $1, preset_min = $2, blockers = $3 WHERE id = $4 RETURNING *",
       [is_random, preset_min, JSON.stringify(blockers), id]
@@ -196,9 +308,12 @@ app.patch("/goals", async (req, res) => {
 });
 
 //GET current Goal
+//endpoint should be /:ownerid/:goalid
 app.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
+    //if ownerid = id from verified token, get goal with goalid
+
     const currentGoal = await pool.query("SELECT * FROM goals WHERE id = $1", [
       id,
     ]);
