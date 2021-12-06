@@ -67,15 +67,17 @@ const verify = (req, res, next) => {
 };
 //refresh
 
+//this should be in database to persist even after server restart
 let refreshTokensArray = [];
+
 app.post("/refresh", (req, res) => {
   const refreshToken = req.body.token;
-  console.log("REFRESH", refreshToken);
+  console.log("REFRESh", refreshToken);
   if (!refreshToken) {
     return res.status(401).json("You are not authenticated!");
   }
   if (!refreshTokensArray.includes(refreshToken)) {
-    return res.status(403).json("Token is not valid!");
+    return res.status(401).json("Token is not valid!");
   }
 
   jwt.verify(refreshToken, "myRefreshSecretKey", (err, user) => {
@@ -205,7 +207,7 @@ app.post("/signin", async (req, res) => {
         const refreshToken = generateRefreshToken(userDetails.rows[0]);
 
         refreshTokensArray.push(refreshToken);
-
+        console.log("array", refreshTokensArray);
         res
           .status(200)
           .json({ user: userDetails.rows[0], accessToken, refreshToken });
