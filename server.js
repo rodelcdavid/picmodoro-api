@@ -48,16 +48,13 @@ const generateRefreshToken = (user) => {
 const verify = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (authHeader) {
-    console.log(authHeader);
     const token = authHeader.split(" ")[1];
-    // console.log("tokenhere", token);
+
     jwt.verify(token, "mySecretKey", (err, user) => {
       if (err) {
-        console.log("token invalid");
-
         return res.status(401).json("Token is not valid!");
       }
-      console.log("token valid");
+
       req.user = user;
       next();
     });
@@ -72,7 +69,7 @@ let refreshTokensArray = [];
 
 app.post("/refresh", (req, res) => {
   const refreshToken = req.body.token;
-  console.log("REFRESh", refreshToken);
+
   if (!refreshToken) {
     return res.status(401).json("You are not authenticated!");
   }
@@ -103,11 +100,11 @@ app.post("/refresh", (req, res) => {
 //logout
 app.post("/logout", (req, res) => {
   const refreshToken = req.body.token;
-  console.log("before logout", refreshTokensArray);
+
   refreshTokensArray = refreshTokensArray.filter(
     (token) => token !== refreshToken
   );
-  console.log("after logout", refreshTokensArray);
+
   res.status(200).json("You logged out");
 });
 
@@ -118,7 +115,7 @@ app.get("/", (req, res) => {
 //Check email
 app.get("/check/:email", async (req, res) => {
   const { email } = req.params;
-  // console.log(id);
+
   try {
     const emailExists = await pool.query(
       `SELECT * FROM login WHERE email = $1;`,
@@ -207,7 +204,7 @@ app.post("/signin", async (req, res) => {
         const refreshToken = generateRefreshToken(userDetails.rows[0]);
 
         refreshTokensArray.push(refreshToken);
-        console.log("array", refreshTokensArray);
+
         res
           .status(200)
           .json({ user: userDetails.rows[0], accessToken, refreshToken });
@@ -226,10 +223,7 @@ app.post("/signin", async (req, res) => {
 //Get all goals of user
 app.get("/user/:id", verify, async (req, res) => {
   const { id } = req.params;
-  // console.log(id);
-  console.log("whats here", req.user.id);
-  console.log(id);
-  //if ownerid from param = id from verified token, get all goals of ownerid
+
   try {
     if (req.user.id === Number(id)) {
       const goalList = await pool.query(
@@ -270,18 +264,36 @@ app.post("/goals", async (req, res) => {
 
 //Delete Goal
 
-app.delete("/goals", async (req, res) => {
-  const { id } = req.body;
+// app.delete("/goals", async (req, res) => {
+//   const { id } = req.body;
 
+//   try {
+//     //if ownerid from param = id from verified token, add new goal with id from body
+
+//     const goalToDelete = await pool.query(
+//       "DELETE FROM goals WHERE id = $1 RETURNING *",
+//       [id]
+//     );
+
+//     res.json(goalToDelete.rows[0]);
+//   } catch (error) {
+//     console.log(error);
+//   }
+// });
+
+app.delete("/:ownerid/:goalid", verify, async (req, res) => {
+  const { ownerid, goalid } = req.params;
   try {
-    //if ownerid from param = id from verified token, add new goal with id from body
+    if (req.user.id === Number(ownerid)) {
+      const goalToDelete = await pool.query(
+        "DELETE FROM goals WHERE id = $1 RETURNING *",
+        [goalid]
+      );
 
-    const goalToDelete = await pool.query(
-      "DELETE FROM goals WHERE id = $1 RETURNING *",
-      [id]
-    );
-
-    res.json(goalToDelete.rows[0]);
+      res.json(goalToDelete.rows[0]);
+    } else {
+      res.status(401).json("Invalid user");
+    }
   } catch (error) {
     console.log(error);
   }
@@ -290,7 +302,7 @@ app.delete("/goals", async (req, res) => {
 //Update goal
 app.patch("/goals", async (req, res) => {
   const { id, is_random, preset_min, blockers } = req.body.currentGoal;
-  console.log("PATCH", req.body.currentGoal);
+
   try {
     //if ownerid from param = id from verified token, update goal with id from body
 
