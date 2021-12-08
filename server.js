@@ -331,21 +331,24 @@ app.patch("/:userid/:goalid", verify, async (req, res) => {
 
 //GET current Goal
 //endpoint should be /:ownerid/:goalid
-app.get("/:id", async (req, res) => {
-  const { id } = req.params;
+app.get("/:userid/:goalid", verify, async (req, res) => {
+  const { userid, goalid } = req.params;
   try {
-    //if ownerid = id from verified token, get goal with goalid
+    if (req.user.id === Number(userid)) {
+      const currentGoal = await pool.query(
+        "SELECT * FROM goals WHERE id = $1",
+        [goalid]
+      );
 
-    const currentGoal = await pool.query("SELECT * FROM goals WHERE id = $1", [
-      id,
-    ]);
-
-    if (currentGoal.rows.length) {
-      setTimeout(() => {
-        res.json(currentGoal.rows[0]);
-      }, 500);
+      if (currentGoal.rows.length) {
+        setTimeout(() => {
+          res.json(currentGoal.rows[0]);
+        }, 500);
+      } else {
+        res.status(404).json("Goal not found");
+      }
     } else {
-      res.status(404).json("Goal not found");
+      res.status(401).json("Invalid user");
     }
 
     // res.json(currentGoal.rows[0]);
