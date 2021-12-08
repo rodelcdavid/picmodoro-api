@@ -52,14 +52,14 @@ const verify = (req, res, next) => {
 
     jwt.verify(token, "mySecretKey", (err, user) => {
       if (err) {
-        return res.status(401).json("Token is not valid!");
+        return res.status(401).json("Token is not valid! (verify)");
       }
 
       req.user = user;
       next();
     });
   } else {
-    res.status().json("You are not authenticated!");
+    res.status(401).json("You are not authenticated!");
   }
 };
 //refresh
@@ -74,7 +74,7 @@ app.post("/refresh", (req, res) => {
     return res.status(401).json("You are not authenticated!");
   }
   if (!refreshTokensArray.includes(refreshToken)) {
-    return res.status(401).json("Token is not valid!");
+    return res.status(401).json("Token is not valid! (refresh)");
   }
 
   jwt.verify(refreshToken, "myRefreshSecretKey", (err, user) => {
@@ -221,14 +221,14 @@ app.post("/signin", async (req, res) => {
 });
 
 //Get all goals of user
-app.get("/user/:id", verify, async (req, res) => {
-  const { id } = req.params;
+app.get("/:userid/goal-list", verify, async (req, res) => {
+  const { userid } = req.params;
 
   try {
-    if (req.user.id === Number(id)) {
+    if (req.user.id === Number(userid)) {
       const goalList = await pool.query(
         "SELECT * FROM goals WHERE owner_id = $1 ORDER BY date_created DESC",
-        [id]
+        [userid]
       );
       // setTimeout(() => {
       //   //TODO: testing having delay, remove this on production
@@ -236,6 +236,7 @@ app.get("/user/:id", verify, async (req, res) => {
       // }, 1000);
       res.status(200).json(goalList.rows);
     } else {
+      //This will run if other user is trying to access other user's goallist
       res.status(401).json("Invalid user");
     }
   } catch (err) {
@@ -244,19 +245,22 @@ app.get("/user/:id", verify, async (req, res) => {
 });
 
 //Add new Goal
-app.post("/goals", async (req, res) => {
+app.post("/:userid/:goalid", verify, async (req, res) => {
   //!Change preset min to 25
+  const { userid, goalid } = req.params;
+
   try {
-    const { ownerId, id, goalName, goalImage } = req.body;
+    if (req.user.id === Number(userid)) {
+      const { goalName, goalImage } = req.body;
+      const newGoal = await pool.query(
+        `INSERT INTO goals VALUES ($1, $2, $3, $4, '[{"clickable": false, "reveal": false}]', 1, false, false, current_timestamp, null) RETURNING *;`,
+        [userid, goalid, goalName, goalImage]
+      );
 
-    //if ownerid from param = id from verified token, add new goal
-
-    const newGoal = await pool.query(
-      `INSERT INTO goals VALUES ($1, $2, $3, $4, '[{"clickable": false, "reveal": false}]', 1, false, false, current_timestamp, null) RETURNING *;`,
-      [ownerId, id, goalName, goalImage]
-    );
-
-    res.json(newGoal.rows[0]);
+      res.json(newGoal.rows[0]);
+    } else {
+      res.status(401).json("Invalid user");
+    }
   } catch (error) {
     console.log(error);
   }
@@ -281,10 +285,10 @@ app.post("/goals", async (req, res) => {
 //   }
 // });
 
-app.delete("/:ownerid/:goalid", verify, async (req, res) => {
-  const { ownerid, goalid } = req.params;
+app.delete("/:userid/:goalid", verify, async (req, res) => {
+  const { userid, goalid } = req.params;
   try {
-    if (req.user.id === Number(ownerid)) {
+    if (req.user.id === Number(userid)) {
       const goalToDelete = await pool.query(
         "DELETE FROM goals WHERE id = $1 RETURNING *",
         [goalid]
