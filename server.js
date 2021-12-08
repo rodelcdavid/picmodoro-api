@@ -113,6 +113,7 @@ app.get("/", (req, res) => {
 });
 
 //Check email
+// /users/:email
 app.get("/check/:email", async (req, res) => {
   const { email } = req.params;
 
@@ -248,10 +249,10 @@ app.get("/:userid/goal-list", verify, async (req, res) => {
 app.post("/:userid/:goalid", verify, async (req, res) => {
   //!Change preset min to 25
   const { userid, goalid } = req.params;
+  const { goalName, goalImage } = req.body;
 
   try {
     if (req.user.id === Number(userid)) {
-      const { goalName, goalImage } = req.body;
       const newGoal = await pool.query(
         `INSERT INTO goals VALUES ($1, $2, $3, $4, '[{"clickable": false, "reveal": false}]', 1, false, false, current_timestamp, null) RETURNING *;`,
         [userid, goalid, goalName, goalImage]
@@ -304,22 +305,25 @@ app.delete("/:userid/:goalid", verify, async (req, res) => {
 });
 
 //Update goal
-app.patch("/goals", async (req, res) => {
-  const { id, is_random, preset_min, blockers } = req.body.currentGoal;
+app.patch("/:userid/:goalid", verify, async (req, res) => {
+  const { userid, goalid } = req.params;
+  const { is_random, preset_min, blockers } = req.body.currentGoal;
 
   try {
-    //if ownerid from param = id from verified token, update goal with id from body
+    if (req.user.id === Number(userid)) {
+      const goalToUpdate = await pool.query(
+        "UPDATE goals SET is_random = $1, preset_min = $2, blockers = $3 WHERE id = $4 RETURNING *",
+        [is_random, preset_min, JSON.stringify(blockers), goalid]
+      );
 
-    const goalToUpdate = await pool.query(
-      "UPDATE goals SET is_random = $1, preset_min = $2, blockers = $3 WHERE id = $4 RETURNING *",
-      [is_random, preset_min, JSON.stringify(blockers), id]
-    );
-
-    // setTimeout(() => {
-    //   // TODO: remove setTimeout
-    //   res.json(goalToDelete.rows[0]);
-    // }, 1000);
-    res.json(goalToUpdate.rows[0]);
+      // setTimeout(() => {
+      //   // TODO: remove setTimeout
+      //   res.json(goalToDelete.rows[0]);
+      // }, 1000);
+      res.status(200).json(goalToUpdate.rows[0]);
+    } else {
+      res.status(401).json("Invalid user");
+    }
   } catch (error) {
     console.log(error);
   }
