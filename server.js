@@ -329,6 +329,27 @@ app.patch("/:userid/:goalid", verify, async (req, res) => {
   }
 });
 
+//Rename Goal
+app.patch("/:userid/:goalid/rename", verify, async (req, res) => {
+  const { userid, goalid } = req.params;
+  const { goalName } = req.body;
+
+  try {
+    if (req.user.id === Number(userid)) {
+      const goalToUpdate = await pool.query(
+        "UPDATE goals SET goal_name = $1 WHERE id = $2 RETURNING *",
+        [goalName, goalid]
+      );
+
+      res.status(200).json(goalToUpdate.rows[0]);
+    } else {
+      res.status(401).json("Invalid user");
+    }
+  } catch (error) {
+    console.log(error);
+  }
+});
+
 //GET current Goal
 //endpoint should be /:ownerid/:goalid
 app.get("/:userid/:goalid", verify, async (req, res) => {
