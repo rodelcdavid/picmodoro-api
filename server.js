@@ -307,13 +307,21 @@ app.delete("/:userid/:goalid", verify, async (req, res) => {
 //Update goal
 app.patch("/:userid/:goalid", verify, async (req, res) => {
   const { userid, goalid } = req.params;
-  const { is_random, preset_min, blockers } = req.body.currentGoal;
+  const { is_random, preset_min, blockers, image_url, goal_name } =
+    req.body.currentGoal;
 
   try {
     if (req.user.id === Number(userid)) {
       const goalToUpdate = await pool.query(
-        "UPDATE goals SET is_random = $1, preset_min = $2, blockers = $3 WHERE id = $4 RETURNING *",
-        [is_random, preset_min, JSON.stringify(blockers), goalid]
+        "UPDATE goals SET is_random = $1, preset_min = $2, blockers = $3, image_url = $4, goal_name = $5 WHERE id = $6 RETURNING *",
+        [
+          is_random,
+          preset_min,
+          JSON.stringify(blockers),
+          image_url,
+          goal_name,
+          goalid,
+        ]
       );
 
       // setTimeout(() => {
@@ -364,7 +372,7 @@ app.get("/:userid/:goalid", verify, async (req, res) => {
       if (currentGoal.rows.length) {
         setTimeout(() => {
           res.json(currentGoal.rows[0]);
-        }, 500);
+        }, 300);
       } else {
         res.status(404).json("Goal not found");
       }
