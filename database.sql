@@ -9,8 +9,7 @@ CREATE TABLE users(
 CREATE TABLE login(
     id SERIAL PRIMARY KEY,
     email VARCHAR(320) UNIQUE NOT NULL,
-    password VARCHAR(100) NOT NULL,
- 
+    password VARCHAR(100) NOT NULL
 );
 
 CREATE TABLE goals(
