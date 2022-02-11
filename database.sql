@@ -13,7 +13,7 @@ CREATE TABLE login(
 );
 
 CREATE TABLE goals(
-    ownerid INTEGER NOT NULL,
+    owner_id INTEGER NOT NULL,
     id VARCHAR(50) UNIQUE NOT NULL,
     goal_name VARCHAR(50) NOT NULL,
     image_url VARCHAR(2000) NOT NULL,
