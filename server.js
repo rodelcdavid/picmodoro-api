@@ -140,16 +140,6 @@ app.post("/register", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    //Check if email exists
-    // const emailExists = await pool.query(
-    //   `SELECT * FROM login WHERE email = $1;`,
-    //   [email]
-    // );
-
-    // if (emailExists.rows.length) {
-    //   throw "Email already exists";
-    // }
-
     //hash password
     const hashedPassword = await bcrypt.hash(password, 10);
     //add to user table
@@ -231,13 +221,9 @@ app.get("/:userid/goal-list", verify, async (req, res) => {
         "SELECT * FROM goals WHERE owner_id = $1 ORDER BY date_created DESC",
         [userid]
       );
-      // setTimeout(() => {
-      //   //TODO: testing having delay, remove this on production
-      //   res.json(goalList.rows);
-      // }, 1000);
+
       res.status(200).json(goalList.rows);
     } else {
-      //This will run if other user is trying to access other user's goallist
       res.status(401).json("Invalid user");
     }
   } catch (err) {
@@ -247,14 +233,13 @@ app.get("/:userid/goal-list", verify, async (req, res) => {
 
 //Add new Goal
 app.post("/:userid/:goalid", verify, async (req, res) => {
-  //!Change preset min to 25
   const { userid, goalid } = req.params;
   const { goalName, goalImage } = req.body;
 
   try {
     if (req.user.id === Number(userid)) {
       const newGoal = await pool.query(
-        `INSERT INTO goals VALUES ($1, $2, $3, $4, '[{"clickable": false, "reveal": false}]', 1, false, false, current_timestamp, null) RETURNING *;`,
+        `INSERT INTO goals VALUES ($1, $2, $3, $4, '[{"clickable": false, "reveal": false}]', 25, false, false, current_timestamp, null) RETURNING *;`,
         [userid, goalid, goalName, goalImage]
       );
 
@@ -266,25 +251,6 @@ app.post("/:userid/:goalid", verify, async (req, res) => {
     console.log(error);
   }
 });
-
-//Delete Goal
-
-// app.delete("/goals", async (req, res) => {
-//   const { id } = req.body;
-
-//   try {
-//     //if ownerid from param = id from verified token, add new goal with id from body
-
-//     const goalToDelete = await pool.query(
-//       "DELETE FROM goals WHERE id = $1 RETURNING *",
-//       [id]
-//     );
-
-//     res.json(goalToDelete.rows[0]);
-//   } catch (error) {
-//     console.log(error);
-//   }
-// });
 
 app.delete("/:userid/:goalid", verify, async (req, res) => {
   const { userid, goalid } = req.params;
@@ -324,10 +290,6 @@ app.patch("/:userid/:goalid", verify, async (req, res) => {
         ]
       );
 
-      // setTimeout(() => {
-      //   // TODO: remove setTimeout
-      //   res.json(goalToDelete.rows[0]);
-      // }, 1000);
       res.status(200).json(goalToUpdate.rows[0]);
     } else {
       res.status(401).json("Invalid user");
@@ -359,7 +321,6 @@ app.patch("/:userid/:goalid/rename", verify, async (req, res) => {
 });
 
 //GET current Goal
-//endpoint should be /:ownerid/:goalid
 app.get("/:userid/:goalid", verify, async (req, res) => {
   const { userid, goalid } = req.params;
   try {
@@ -379,8 +340,6 @@ app.get("/:userid/:goalid", verify, async (req, res) => {
     } else {
       res.status(401).json("Invalid user");
     }
-
-    // res.json(currentGoal.rows[0]);
   } catch (error) {
     console.log(error);
   }
