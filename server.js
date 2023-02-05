@@ -10,21 +10,25 @@ const jwt = require("jsonwebtoken");
 const { Pool } = require("pg");
 const app = express();
 
-// const pool = new Pool({
-//   user: "postgres",
-//   host: "localhost",
-//   port: "5432",
-//   password: "admin",
-//   database: "picmodoro",
-// });
+let pool;
+if (process.env.NODE_ENV === "development") {
+  pool = new Pool({
+    user: "postgres",
+    host: "localhost",
+    port: "5432",
+    password: "admin",
+    database: "picmodoro",
+  });
+}
 
-//For heroku
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
-});
+if (process.env.NODE_ENV === "production") {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false,
+    },
+  });
+}
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -347,4 +351,6 @@ app.get("/:userid/:goalid", verify, async (req, res) => {
 
 const PORT = process.env.PORT;
 
-app.listen(PORT || 3000, () => console.log(`App listening to port ${PORT}`));
+app.listen(PORT || 7000, () =>
+  console.log(`App listening to port ${PORT ? PORT : 7000}`)
+);
